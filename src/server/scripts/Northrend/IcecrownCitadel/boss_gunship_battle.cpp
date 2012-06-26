@@ -244,3 +244,207 @@ void AddSC_boss_gunship_battle()
 	uint32 durationBeforeRefreshing;
     Position location;
 }
+
+typedef std::list<Player*> TPlayerLists;
+
+TPlayerLists GetPlayersInTheMaps(Map *map)
+{
+    TPlayerLists players;
+    const Map::PlayerList &PlayerList = map->GetPlayers();
+    if (!PlayerList.isEmpty())
+        for (Map::PlayerList::const_iterator i = PlayerList.begin(); i != PlayerList.end(); ++i)
+            if (Player* player = i->getSource())
+                players.push_back(player);
+    return players;
+}
+
+Player* SelectRandomPlayerFromLists(TPlayerLists &players)
+{
+    if (players.empty())
+        return NULL;
+    TPlayerLists::iterator it = players.begin();
+    std::advance(it, urand(0, players.size()-1));
+    return *it;
+}
+
+Player* SelectRandomPlayerInTheMaps(Map* map)
+{
+    TPlayerLists players = GetPlayersInTheMaps(map);
+    return SelectRandomPlayerFromLists(players);
+}
+
+void StartFlyShip(Transport* transport)
+{
+    transport->SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_IN_USE);
+    transport->SetGoState(GO_STATE_ACTIVE);
+    transport->SetUInt32Value(GAMEOBJECT_DYNAMIC, 0x10830010); // Seen in sniffs
+    transport->SetFloatValue(GAMEOBJECT_PARENTROTATION 3, 1.0f);
+
+    Map* map = transport->GetMap();
+    std::set<uint32> mapsUsed;
+    GameObjectTemplate const* goinfo = transport->GetGOInfo();
+
+    transport->GenerateWaypoints(goinfo->moTransport.taxiPathId, mapsUsed);
+
+    for (Map::PlayerList::const_iterator itr = map->GetPlayers().begin(); itr != map->GetPlayers().end(); ++itr)
+    {
+        if (Player* pPlayer = itr->getSource())
+        {
+            UpdateData transData;
+            transport->BuildCreateUpdateBlockForPlayer(&transData, pPlayer);
+            WorldPacket packet;
+            transData.BuildPacket(&packet);
+            pPlayer->SendDirectMessage(&packet);
+        }
+    }
+}
+
+void RelocateTransport(Transport* transport)
+{
+    Map* map = transport->GetMap();
+    InstanceScript* instance = transport->GetInstanceScript();
+
+    if (!transport || !instance)
+        return;
+
+    switch (transport->GetEntry())
+    {
+        case GO_THE_SKYBREAKER_ALLIANCE_ICC:
+            if (instance->GetBossState(DATA_GUNSHIP_EVENT) != DONE)
+                transport->Relocate(-377.184021f, 2073.548584f, 445.753387f);
+            else if (instance->GetBossState(DATA_GUNSHIP_EVENT) == DONE)
+                transport->Relocate(-583.942627f, 2212.364990f, 534.673889f);
+            break;
+        case GO_ORGRIM_S_HAMMER_ALLIANCE_ICC:
+            if (instance->GetBossState(DATA_GUNSHIP_EVENT) != DONE)
+                transport->Relocate(-384.878479f, 1989.831665f, 431.549438f);
+            break;
+        case GO_ORGRIM_S_HAMMER_HORDE_ICC:
+            if (instance->GetBossState(DATA_GUNSHIP_EVENT) != DONE)
+                transport->Relocate(-438.142365f, 2395.725830f, 436.781647f);
+            else if (instance->GetBossState(DATA_GUNSHIP_EVENT) == DONE)
+                transport->Relocate(-583.942627f, 2212.364990f, 534.673889f);
+            break;
+        case GO_THE_SKYBREAKER_HORDE_ICC:
+            if (instance->GetBossState(DATA_GUNSHIP_EVENT) != DONE)
+                transport->Relocate(-435.854156f, 2475.328125f, 449.364105f);
+            break;
+    }
+
+    transport->Update(0);
+    transport->UpdateNPCPositions();
+}
+
+void StopFlyShip(Transport* transport)
+{
+    Map* map = transport->GetMap();
+    transport->m_WayPoints.clear();
+    RelocateTransport(transport);
+    transport->RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_IN_USE);
+    transport->SetGoState(GO_STATE_READY);
+
+    for (Map::PlayerList::const_iterator itr = map->GetPlayers().begin(); itr != map->GetPlayers().end(); ++itr)
+    {
+        if (Player* pPlayer = itr->getSource())
+        {
+            UpdateData transData;
+            transport->BuildCreateUpdateBlockForPlayer(&transData, pPlayer);
+            WorldPacket packet;
+            transData.BuildPacket(&packet);
+            pPlayer->SendDirectMessage(&packet);
+        }
+    }
+}
+
+Transport* CheckUnfriendlyShip(Creature* creature, InstanceScript* instance, uint32 data)
+{
+    if(Creature* pCapitan = ObjectAccessor::GetCreature(*creature, instance->GetData64(data)))
+        return pCapitan->GetTransport();
+    else
+        return NULL;
+}
+
+void TeleportPlayers(Map* map, uint64 TeamInInstance)
+{
+    if(map)
+    {
+        Map::PlayerList const &lPlayers = map->GetPlayers();
+        if (!lPlayers.isEmpty())
+        {
+            for(Map::PlayerList::const_iterator itr = lPlayers.begin(); itr != lPlayers.end(); ++itr)
+            {
+                if (Player* pPlayer = itr->getSource())
+                {
+                    if (pPlayer->isDead() && !pPlayer->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+                        pPlayer->ResurrectPlayer(1.0f);
+
+                    if(TeamInInstance == ALLIANCE)
+                        pPlayer->TeleportTo(631, -437.498505f, 2425.954f, 192.997f, 2.247f);
+                    else
+                        pPlayer->TeleportTo(631, -437.498505f, 1997.954f, 192.997f, 2.247f);
+                }
+            }
+        }
+    }
+}
+
+void DoShipExplosion(Transport* transport)
+{
+    for (Transport::CreatureSet::iterator itr = transport->m_NPCPassengerSet.begin(); itr != transport->m_NPCPassengerSet.end();)
+    {
+        if (Creature* npc = *itr)
+        {
+            if(npc->GetEntry() == NPC_GB_GUNSHIP_HULL)
+                npc->CastSpell(npc, SPELL_SHIP_EXPLOSION, true);
+        }
+        ++itr;
+    }
+}
+
+bool DoWipeCheck(Transport* transport)
+{
+    for (Transport::PlayerSet::const_iterator itr = transport->GetPassengers().begin(); itr != transport->GetPassengers().end();)
+    {
+        Player* plr = *itr;
+        ++itr;
+
+        if (plr && plr->isAlive())
+            return true;
+    }
+    return false;
+}
+
+void DoCheckFallingPlayer(Creature* creature)
+{
+    Map* map = creature->GetMap();
+
+    if(map)
+    {
+        Map::PlayerList const &lPlayers = map->GetPlayers();
+        if (!lPlayers.isEmpty())
+        {
+            for(Map::PlayerList::const_iterator itr = lPlayers.begin(); itr != lPlayers.end(); ++itr)
+            {
+                if (Player* pPlayer = itr->getSource())
+                {
+                    if (pPlayer->GetPositionZ() < 420.0f && pPlayer->IsWithinDistInMap(creature, 300.0f))
+                        pPlayer->NearTeleportTo(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ() 5.0f, creature->GetOrientation());
+                }
+            }
+        }
+    }
+}
+
+void RestartEvent(Transport* transport1, Transport* transport2, Map* map, uint64 TeamInInstance)
+{
+	sMapMgr->UnLoadTransportFromMap(transport1);
+    sMapMgr->UnLoadTransportFromMap(transport2);
+
+    Map::PlayerList const& players = map->GetPlayers();
+    if (players.isEmpty())
+        return;
+}
+
+void AddSC_boss_gunship_battle()
+{
+}
