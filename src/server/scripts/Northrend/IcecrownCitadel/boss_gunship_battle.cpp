@@ -1,4 +1,6 @@
 #include "icecrown_citadel.h"
+#include "Transport.h"
+#include "MapManager.h"
 
 enum eAchievements
 {
