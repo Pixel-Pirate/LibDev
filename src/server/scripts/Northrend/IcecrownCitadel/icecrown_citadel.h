@@ -320,7 +320,10 @@ enum CreaturesIds
     NPC_GB_HORDE_CANON                          = 36839,
     NPC_GB_INVISIBLE_STALKER                    = 32780,
     NPC_GB_PORTAL                               = 37227,
-    NPC_GB_GUNSHIP_HULL                         = 37547,
+    NPC_GB_GUNSHIP_HULL                         = 37547,	
+	NPC_KORKRON_INVOKER                         = 37033,
+    NPC_SPIRE_FROSTWYRM                         = 37230,
+    NPC_SKYBREAKER_SORCERER                     = 37026,
 };
 
 enum GameObjectsIds
