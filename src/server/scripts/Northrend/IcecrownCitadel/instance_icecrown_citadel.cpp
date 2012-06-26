@@ -132,6 +132,7 @@ class instance_icecrown_citadel : public InstanceMapScript
                 SindragosaGUID = 0;
                 SpinestalkerGUID = 0;
                 RimefangGUID = 0;
+				TheLichKingTeleportGUID = 0;
                 TheLichKingGUID = 0;
                 HighlordTirionFordringGUID = 0;
                 TerenasMenethilGUID = 0;
@@ -294,6 +295,10 @@ class instance_icecrown_citadel : public InstanceMapScript
                         break;
                     case NPC_RIMEFANG:
                         RimefangGUID = creature->GetGUID();
+                        break;
+					case NPC_INVISIBLE_STALKER:
+                        if (creature->GetExactDist2d(4357.052f, 2769.421f) < 10.0f)
+                            creature->CastSpell(creature, SPELL_ARTHAS_TELEPORTER_CEREMONY, false);
                         break;
                     case NPC_THE_LICH_KING:
                         TheLichKingGUID = creature->GetGUID();
@@ -541,6 +546,11 @@ class instance_icecrown_citadel : public InstanceMapScript
                         if (Creature* valithria = instance->GetCreature(ValithriaDreamwalkerGUID))
                             go->SetLootRecipient(valithria->GetLootRecipient());
                         go->RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_LOCKED | GO_FLAG_NOT_SELECTABLE | GO_FLAG_NODESPAWN);
+                        break;
+					case GO_SCOURGE_TRANSPORTER_LK:
+                        TheLichKingTeleportGUID = go->GetGUID();
+                        if (GetBossState(DATA_PROFESSOR_PUTRICIDE) == DONE && GetBossState(DATA_BLOOD_QUEEN_LANA_THEL) == DONE && GetBossState(DATA_SINDRAGOSA) == DONE)
+                            go->SetGoState(GO_STATE_ACTIVE);
                         break;
                     case GO_ARTHAS_PLATFORM:
                         // this enables movement at The Frozen Throne, when printed this value is 0.000000f
@@ -794,6 +804,8 @@ class instance_icecrown_citadel : public InstanceMapScript
                         break;
                     case DATA_PROFESSOR_PUTRICIDE:
                         HandleGameObject(PlagueSigilGUID, state != DONE);
+						if (state == DONE)
+                            CheckLichKingAvailability();
                         if (instance->IsHeroic())
                         {
                             if (state == FAIL && HeroicAttempts)
@@ -808,6 +820,8 @@ class instance_icecrown_citadel : public InstanceMapScript
                         break;
                     case DATA_BLOOD_QUEEN_LANA_THEL:
                         HandleGameObject(BloodwingSigilGUID, state != DONE);
+						if (state == DONE)
+                            CheckLichKingAvailability();
                         if (instance->IsHeroic())
                         {
                             if (state == FAIL && HeroicAttempts)
@@ -826,6 +840,8 @@ class instance_icecrown_citadel : public InstanceMapScript
                         break;
                     case DATA_SINDRAGOSA:
                         HandleGameObject(FrostwingSigilGUID, state != DONE);
+						if (state == DONE)
+                            CheckLichKingAvailability();
                         if (instance->IsHeroic())
                         {
                             if (state == FAIL && HeroicAttempts)
@@ -1110,6 +1126,28 @@ class instance_icecrown_citadel : public InstanceMapScript
                 }
 
                 return true;
+            }
+			
+			void CheckLichKingAvailability()
+            {
+                if (GetBossState(DATA_PROFESSOR_PUTRICIDE) == DONE && GetBossState(DATA_BLOOD_QUEEN_LANA_THEL) == DONE && GetBossState(DATA_SINDRAGOSA) == DONE)
+                {
+                    if (GameObject* teleporter = instance->GetGameObject(TheLichKingTeleportGUID))
+                    {
+                        teleporter->SetGoState(GO_STATE_ACTIVE);
+
+                        std::list<Creature*> stalkers;
+                        GetCreatureListWithEntryInGrid(stalkers, teleporter, NPC_INVISIBLE_STALKER, 100.0f);
+                        if (stalkers.empty())
+                            return;
+
+                        stalkers.sort(Trinity::ObjectDistanceOrderPred(teleporter));
+                        stalkers.front()->CastSpell((Unit*)NULL, SPELL_ARTHAS_TELEPORTER_CEREMONY, false);
+                        stalkers.pop_front();
+                        for (std::list<Creature*>::iterator itr = stalkers.begin(); itr != stalkers.end(); ++itr)
+                            (*itr)->AI()->Reset();
+                    }
+                }
             }
 
             std::string GetSaveData()
@@ -1482,6 +1520,7 @@ class instance_icecrown_citadel : public InstanceMapScript
             uint64 SindragosaGUID;
             uint64 SpinestalkerGUID;
             uint64 RimefangGUID;
+			uint64 TheLichKingTeleportGUID;
             uint64 TheLichKingGUID;
             uint64 HighlordTirionFordringGUID;
             uint64 TerenasMenethilGUID;
@@ -1508,6 +1547,7 @@ class instance_icecrown_citadel : public InstanceMapScript
 			// Gunship
             uint32 FirstSquadState;
             uint32 SecondSquadState;
+			uint32 SpireSquadState;
             uint64 SkybreakerBossGUID;
             uint64 OrgrimmarBossGUID;
             uint64 DeathbringerSaurfangGbGUID;
