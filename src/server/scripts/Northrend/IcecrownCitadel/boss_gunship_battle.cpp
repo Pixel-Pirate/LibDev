@@ -1514,6 +1514,226 @@ class npc_sergeant : public CreatureScript
         }
 };
 
+class npc_marine_or_reaver : public CreatureScript
+{
+    public:
+        npc_marine_or_reaver() : CreatureScript("npc_marine_or_reaver") { }
+
+        struct npc_marine_or_reaverAI : public ScriptedAI
+        {
+            npc_marine_or_reaverAI(Creature *creature) : ScriptedAI(creature), _instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                desperated = false;
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetReactState(REACT_PASSIVE);
+                events.ScheduleEvent(EVENT_WALK_MOBS, 1500);
+                me->RemoveAurasDueToSpell(SPELL_EXPERIENCED);
+                me->RemoveAurasDueToSpell(SPELL_ELITE);
+                DesperateResolve = RAID_MODE( SPELL_DESPERATE_RESOLVE_10_NM, SPELL_DESPERATE_RESOLVE_25_NM, SPELL_DESPERATE_RESOLVE_10_HM, SPELL_DESPERATE_RESOLVE_25_HM);
+                events.ScheduleEvent(EVENT_EXPERIENCED, urand(19000, 21000)); // ~20 sec
+                events.ScheduleEvent(EVENT_VETERAN, urand(39000, 41000)); // ~40 sec
+                events.ScheduleEvent(EVENT_BURNING_PITCH, urand(60000, 62000));// ~61 sec
+            }
+
+            void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/)
+            {
+                if (me->GetHealthPct() < 20.0f && !desperated)
+                {
+                    desperated = true;
+                    DoCast(me, DesperateResolve);
+                }
+            }
+
+            bool CanAIAttack(Unit const* target) const
+            {
+                if (target->GetEntry() == NPC_GB_GUNSHIP_HULL)
+                    return false;
+
+                return true;
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if(_instance->GetBossState(DATA_GUNSHIP_EVENT) != IN_PROGRESS)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_WALK_MOBS:
+                            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                            me->SetReactState(REACT_AGGRESSIVE);
+                            switch (me->GetEntry())
+                            {
+                                case NPC_GB_KORKRON_REAVERS:
+                                    if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true, SPELL_ON_SKYBREAKERS_DECK))
+                                    {
+                                        me->GetMotionMaster()->MoveChase(target);
+                                        me->AI()->AttackStart(target);
+                                    }
+                                break;
+                                case NPC_GB_SKYBREAKER_MARINE:
+                                    if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true, SPELL_ON_ORGRIMS_HAMMERS_DECK))
+                                    {
+                                        me->GetMotionMaster()->MoveChase(target);
+                                        me->AI()->AttackStart(target);
+                                    }
+                                break;
+                            }
+                            break;
+                        case EVENT_BURNING_PITCH:
+                            if (Unit* pTarget = SelectTarget(SELECT_TARGET_RANDOM, 0, 100, true))
+                            {
+                                if (me->GetEntry() == NPC_GB_KORKRON_REAVERS)
+                                    DoCast(pTarget, SPELL_BURNING_PITCH_H);
+                                else
+                                    DoCast(pTarget, SPELL_BURNING_PITCH_A);
+                            }
+                            events.ScheduleEvent(EVENT_BURNING_PITCH, urand(60000, 62000));// ~61 sec
+                            break;
+                        case EVENT_EXPERIENCED:
+                            DoCast(me, SPELL_EXPERIENCED);
+                            break;
+                        case EVENT_VETERAN:
+                            me->RemoveAurasDueToSpell(SPELL_EXPERIENCED);
+                            DoCast(me, SPELL_VETERAN);
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+                uint32 DesperateResolve;
+                bool desperated;
+
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_marine_or_reaverAI(pCreature);
+        }
+};
+
+class npc_gunship_mage : public CreatureScript
+{
+    public:
+        npc_gunship_mage() : CreatureScript("npc_gunship_mage") { }
+
+        struct npc_gunship_mageAI : public Scripted_NoMovementAI
+        {
+            npc_gunship_mageAI(Creature *creature) : Scripted_NoMovementAI(creature),_instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                timer_BelowZero = urand(10000, 15000);
+            }
+
+            void DoAction(int32 const action)
+            {
+                switch (action)
+                {
+                    case EVENT_FREEZE_CANNON:
+                        if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                        {
+                            std::list<Creature*> cannonsA;
+                            GetCreatureListWithEntryInGrid(cannonsA, me, NPC_GB_ALLIANCE_CANON, 500.0f);
+                            for (std::list<Creature*>::iterator itr = cannonsA.begin(); itr != cannonsA.end(); ++itr)
+                            {
+                                if (Vehicle* veh = (*itr)->GetVehicleKit())
+                                    veh->RemoveAllPassengers();
+                                                                      
+                                DoCast((*itr),SPELL_BELOW_ZERO,true);
+                            }
+                        }
+                        else if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                        {
+                            std::list<Creature*> cannonsH;
+                            GetCreatureListWithEntryInGrid(cannonsH, me, NPC_GB_HORDE_CANON, 500.0f);
+                            for (std::list<Creature*>::iterator itr = cannonsH.begin(); itr != cannonsH.end(); ++itr)
+                            {
+                                if (Vehicle* veh = (*itr)->GetVehicleKit())
+                                    veh->RemoveAllPassengers();
+                                                                      
+                                 DoCast((*itr),SPELL_BELOW_ZERO,true);
+                            }
+                        }
+                    break;
+                }
+            }
+
+            void JustDied(Unit* killer)
+            {
+                if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                {
+                    if (me->GetGUID() == _instance->GetData64(DATA_GB_BATTLE_MAGE))
+                    {
+                        if (Creature* pSaurfangBoss = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_HIGH_OVERLORD_SAURFANG)))
+                            pSaurfangBoss->AI()->DoAction(ACTION_MAGE_DIE);
+                    }
+                 }
+                
+                 if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                 {
+                     if (me->GetGUID() == _instance->GetData64(DATA_GB_BATTLE_MAGE))
+                     {
+                         if (Creature* pMuradin = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_MURADIN_BRONZEBEARD)))
+                             pMuradin->AI()->DoAction(ACTION_MAGE_DIE);
+                     }
+                 }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if(_instance->GetBossState(DATA_GUNSHIP_EVENT) != IN_PROGRESS)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+                    
+                if (me->GetGUID() == _instance->GetData64(DATA_GB_BATTLE_MAGE))
+                {
+                    if( timer_BelowZero <= diff)
+                    {
+                        me->AI()->DoAction(EVENT_FREEZE_CANNON);
+                        timer_BelowZero = urand(10000, 15000);
+                    } else timer_BelowZero -= diff;
+                }
+                else
+                {
+                    DoCast(me,SPELL_SHADOW_CHANNELING);
+                }
+            }
+                uint32 timer_BelowZero;
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_mageAI(pCreature);
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
@@ -1522,4 +1742,6 @@ void AddSC_boss_gunship_battle()
 	new npc_gunship_cannon();
 	new npc_korkron_axethrower_rifleman();
 	new npc_sergeant();
+	new npc_marine_or_reaver();
+	new npc_gunship_mage
 }
