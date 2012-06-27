@@ -1146,8 +1146,128 @@ class npc_gunship_skybreaker : public CreatureScript
         }
 };
 
+class npc_gunship_orgrimmar : public CreatureScript
+{
+    public:
+        npc_gunship_orgrimmar() : CreatureScript("npc_gunship_orgrimmar") { }
+
+        struct npc_gunship_orgrimmarAI : public Scripted_NoMovementAI
+        {
+            npc_gunship_orgrimmarAI(Creature *creature) : Scripted_NoMovementAI(creature), _instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                me->SetReactState(REACT_PASSIVE);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetDisplayId(11686);
+            }
+
+            void EnterCombat(Unit* /*who*/)
+            {
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                SetCombatMovement(false);
+                _instance->SendEncounterUnit(ENCOUNTER_FRAME_ADD, me);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            }
+
+            void JustDied(Unit* killer)
+            {
+                if (Transport* t = me->GetTransport())
+                    DoShipExplosion(t);
+
+                if(_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                {
+                    if (Creature* pMuradin = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_MURADIN_BRONZEBEARD)))
+                        pMuradin->AI()->DoAction(ACTION_DONE);
+                }
+                
+                else if(_instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                {
+                    if (Creature* pSaurfang = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_HIGH_OVERLORD_SAURFANG)))
+                        pSaurfang->AI()->DoAction(ACTION_FAIL);
+                }
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_orgrimmarAI(pCreature);
+        }
+};
+
+class npc_gunship_cannon : public CreatureScript
+{
+    public:
+        npc_gunship_cannon() : CreatureScript("npc_gunship_cannon") { }
+
+        struct npc_gunship_cannonAI : public ScriptedAI
+        {
+            npc_gunship_cannonAI(Creature *creature) : ScriptedAI(creature) { }
+
+            void Reset()
+            {
+                me->SetReactState(REACT_PASSIVE);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                DoCast(me, SPELL_HEAT_DRAIN, true);
+            }
+
+            void SpellHit(Unit* /*caster*/, SpellInfo const* spellEntry)
+            {
+                if (spellEntry->Id == SPELL_BELOW_ZERO)
+                    me->GetVehicleKit()->RemoveAllPassengers();
+            }
+
+            void DamageTaken(Unit* attacker, uint32& damage)
+            {
+                if(me->GetEntry() == NPC_GB_ALLIANCE_CANON)
+                {
+                    if (Creature* pAllianceBoss = ObjectAccessor::GetCreature(*me, me->GetInstanceScript()->GetData64(DATA_SKYBREAKER_BOSS)))
+                        attacker->DealDamage(pAllianceBoss, damage);
+                }
+
+                if(me->GetEntry() == NPC_GB_HORDE_CANON)
+                {
+                    if (Creature* pHordeBoss = ObjectAccessor::GetCreature(*me, me->GetInstanceScript()->GetData64(DATA_ORGRIMMAR_HAMMER_BOSS)))
+                        attacker->DealDamage(pHordeBoss, damage);
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if(me->HasAura(SPELL_BELOW_ZERO))
+                {
+                    me->RemoveAurasByType(SPELL_AURA_CONTROL_VEHICLE);
+                    me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                                      
+                    if (Vehicle* veh = me->GetVehicleKit())
+                        veh->RemoveAllPassengers();
+                }
+                else
+                {
+                    me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                }
+            }
+
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_cannonAI(pCreature);
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
 	new npc_gunship_skybreaker();
+	new npc_gunship_orgrimmar();
+	new npc_gunship_cannon();
 }
