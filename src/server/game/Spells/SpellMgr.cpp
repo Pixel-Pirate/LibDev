@@ -3067,7 +3067,7 @@ void SpellMgr::LoadDbcDataCorrections()
 			case 68645: // Spell permettant de sauter d'un bateau à l'autre -- Gunship
                 spellInfo->Effect[0] = SPELL_EFFECT_KNOCK_BACK_DEST;
                 spellInfo->EffectMiscValue[0] = -250;
-                spellInfo->EffectBasePoints[0] = 150
+                spellInfo->EffectBasePoints[0] = 150;
                 break;
             case 38310: // Multi-Shot
             case 53385: // Divine Storm (Damage)
