@@ -10,8 +10,13 @@ enum eAchievements
 
 enum Actions
 {
-	ACTION_INTRO_START = 1,
-    ACTION_BATTLE_EVENT = 2,
+	ACTION_INTRO_START 		= 1,
+    ACTION_BATTLE_EVENT 	= 2,
+    ACTION_MAGE_DIE 		= 3,
+    ACTION_ROCK_DIE 		= 4,
+    ACTION_AXES_RIFL_DIE 	= 5,
+    ACTION_DONE 			= 6,
+    ACTION_FAIL 			= 7,
 };
 
 enum Spells
@@ -38,6 +43,8 @@ enum Spells
 
     SPELL_ON_ORGRIMS_HAMMERS_DECK 		= 70121,
     SPELL_ON_SKYBREAKERS_DECK 			= 70120,
+	
+	SPELL_ACHIEVEMENT                 	= 72959,
 
     SPELL_WRATH 						= 69968,
     SPELL_HEALING_TOUCH 				= 69899,
@@ -86,6 +93,8 @@ enum Spells
 
 	SPELL_SHIP_EXPLOSION 				= 72137,
     SPELL_REMOVE_ROCKET_PACK 			= 70713,
+	
+	SPELL_ACHIEVEMENT_CHECK           	= 72959,
 };
 
 enum Events
@@ -1080,7 +1089,65 @@ class npc_muradin_gunship : public CreatureScript
         }
 };
 
+class npc_gunship_skybreaker : public CreatureScript
+{
+    public:
+        npc_gunship_skybreaker() : CreatureScript("npc_gunship_skybreaker") { }
+
+        struct npc_gunship_skybreakerAI : public Scripted_NoMovementAI
+        {
+            npc_gunship_skybreakerAI(Creature *creature) : Scripted_NoMovementAI(creature), _instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                me->SetReactState(REACT_PASSIVE);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                me->SetDisplayId(11686);
+            }
+
+            void EnterCombat(Unit* /*who*/)
+            {
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                SetCombatMovement(false);
+                _instance->SendEncounterUnit(ENCOUNTER_FRAME_ADD, me);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            }
+
+            void JustDied(Unit* killer)
+            {
+                if (Transport* t = me->GetTransport())
+                    DoShipExplosion(t);
+
+                if(_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                {
+                    if (Creature* pMuradin = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_MURADIN_BRONZEBEARD)))
+                        pMuradin->AI()->DoAction(ACTION_FAIL);
+                }
+                
+                else if(_instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                {
+                    if (Creature* pSaurfang = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_HIGH_OVERLORD_SAURFANG)))
+                        pSaurfang->AI()->DoAction(ACTION_DONE);
+                }
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_skybreakerAI(pCreature);
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
+	new npc_gunship_skybreaker();
 }
