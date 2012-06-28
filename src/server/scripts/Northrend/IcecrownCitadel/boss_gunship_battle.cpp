@@ -2846,6 +2846,105 @@ class at_icc_land_frostwyrm : public AreaTriggerScript
         }
 };
 
+class npc_gunship_portal : public CreatureScript
+{
+    public:
+        npc_gunship_portal() : CreatureScript("npc_gunship_portal") { }
+
+        struct npc_gunship_portalAI : public Scripted_NoMovementAI
+        {
+            npc_gunship_portalAI(Creature *creature) : Scripted_NoMovementAI(creature),_instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+               events.ScheduleEvent(EVENT_UNSUMMON_PORTAL, 20500);
+               me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            }
+
+            void JustDied(Unit* killer)
+            {
+                me->RemoveFromWorld();
+            }
+
+            void UpdateAI( const uint32 diff)
+            {
+
+             events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_UNSUMMON_PORTAL:
+                            me->RemoveFromWorld();
+                            break;
+                    }
+                }
+            }
+
+    private:
+        EventMap events;
+        InstanceScript* _instance;
+
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_portalAI(pCreature);
+        }
+};
+
+
+class npc_gunship_trigger : public CreatureScript
+{
+    public:
+        npc_gunship_trigger() : CreatureScript("npc_gunship_trigger") { }
+
+        struct npc_gunship_triggerAI : public Scripted_NoMovementAI
+        {
+            npc_gunship_triggerAI(Creature *creature) : Scripted_NoMovementAI(creature),_instance(creature->GetInstanceScript())
+            {
+
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                me->SetReactState(REACT_PASSIVE);
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+            }
+
+            void EnterCombat(Unit* /*who*/)
+            {
+                me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE);
+                SetCombatMovement(false);
+            }
+
+            void DamageTaken(Unit* attacker, uint32& damage)
+            {
+                damage = 0;
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_gunship_triggerAI(pCreature);
+        }
+};
+
 class transport_gunship : public TransportScript
 {
     public:
@@ -2883,5 +2982,7 @@ void AddSC_boss_gunship_battle()
 	new npc_skybreaker_vindicator();
 	new npc_icc_spire_frostwyrm();
 	new at_icc_land_frostwyrm();
+	new npc_gunship_portal();
+	new  npc_gunship_trigger();
 	new transport_gunship();
 }
