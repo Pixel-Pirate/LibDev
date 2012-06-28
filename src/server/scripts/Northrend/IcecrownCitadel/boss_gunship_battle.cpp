@@ -2982,6 +2982,210 @@ class transport_gunship : public TransportScript
         }
 };
 
+class spell_icc_remove_rocket_pack : public SpellScriptLoader
+{
+    public:
+        spell_icc_remove_rocket_pack() : SpellScriptLoader("spell_icc_remove_rocket_pack") { }
+
+        class spell_icc_remove_rocket_pack_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_icc_remove_rocket_pack_SpellScript);
+
+            void HandleEffect(SpellEffIndex /*effIndex*/)
+            {
+                Player* hitPlr = GetHitPlayer();
+                if (!hitPlr) // If player is offline
+                    return;
+
+                int32 itemId = GetEffectValue();
+                uint32 itemCount = hitPlr->GetItemCount(itemId, false);
+                hitPlr->DestroyItemCount(itemId, itemCount, true, false);
+            }
+
+            void Register()
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_icc_remove_rocket_pack_SpellScript::HandleEffect, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+            }
+        };
+
+        SpellScript* GetSpellScript() const
+        {
+            return new spell_icc_remove_rocket_pack_SpellScript();
+        }
+};
+
+class spell_gb_heat_drain : public SpellScriptLoader
+{
+    public:
+        spell_gb_heat_drain() : SpellScriptLoader("spell_gb_heat_drain") { }
+
+        class spell_gb_heat_drain_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gb_heat_drain_SpellScript);
+
+            void HandleDummy(SpellEffIndex /*effIndex*/)
+            {
+                Unit* caster = GetCaster();
+
+                if (caster->GetPower(POWER_ENERGY) != 0)
+                    caster->ModifyPower(POWER_ENERGY, -1);
+
+                if (caster->GetPower(POWER_ENERGY) >= 99)
+                    caster->CastSpell(caster, SPELL_OVERHEAT, true);
+            }
+
+            void Register()
+            {
+                OnEffectHit += SpellEffectFn(spell_gb_heat_drain_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const
+        {
+            return new spell_gb_heat_drain_SpellScript();
+        }
+};
+
+class spell_gb_overheat_drain : public SpellScriptLoader
+{
+    public:
+        spell_gb_overheat_drain() : SpellScriptLoader("spell_gb_overheat_drain") { }
+
+        class spell_gb_overheat_drain_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gb_overheat_drain_SpellScript);
+
+            void HandleDummy(SpellEffIndex /*effIndex*/)
+            {
+                Unit* caster = GetCaster();
+
+                if (caster->GetPower(POWER_ENERGY) >= 10)
+                    caster->ModifyPower(POWER_ENERGY, -10);
+            }
+
+            void Register()
+            {
+                OnEffectHit += SpellEffectFn(spell_gb_overheat_drain_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const
+        {
+            return new spell_gb_overheat_drain_SpellScript();
+        }
+};
+
+class spell_gb_incinerating_blast : public SpellScriptLoader
+{
+    public:
+        spell_gb_incinerating_blast() : SpellScriptLoader("spell_gb_incinerating_blast") { }
+
+        class spell_gb_incinerating_blast_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gb_incinerating_blast_SpellScript);
+
+            void AddExtraDamage()
+            {
+                Unit* caster = GetCaster();
+                if (!caster || !caster->GetPower(POWER_ENERGY))
+                    return;
+
+                SetHitDamage(int32(GetHitDamage() (caster->GetPower(POWER_ENERGY) * 100.0f)));
+                caster->SetPower(POWER_ENERGY, 0);
+            }
+
+            void Register()
+            {
+                OnHit += SpellHitFn(spell_gb_incinerating_blast_SpellScript::AddExtraDamage);
+            }
+        };
+
+        SpellScript* GetSpellScript() const
+        {
+            return new spell_gb_incinerating_blast_SpellScript();
+        }
+};
+
+class spell_gb_burning_pitch : public SpellScriptLoader
+{
+    public:
+        spell_gb_burning_pitch() : SpellScriptLoader("spell_gb_burning_pitch") { }
+
+        class spell_gb_burning_pitch_SpellScript : public SpellScript
+        {
+            PrepareSpellScript(spell_gb_burning_pitch_SpellScript);
+
+            bool Validate(SpellInfo const* /*spellInfo*/)
+            {
+                if (!sSpellMgr->GetSpellInfo(SPELL_BURNING_PITCH_SIEGE_DMG_A))
+                    return false;
+                if (!sSpellMgr->GetSpellInfo(SPELL_BURNING_PITCH_SIEGE_DMG_H))
+                    return false;
+                if (!sSpellMgr->GetSpellInfo(SPELL_BURNING_PITCH_AOE_DAMAGE))
+                    return false;
+                return true;
+            }
+
+            void HandleDummy(SpellEffIndex /*effIndex*/)
+            {
+                Unit* caster = GetCaster();
+                Unit* target = GetHitUnit();
+
+                if (!caster || !target)
+                    return;
+
+                if (GetSpellInfo()->Id == SPELL_BURNING_PITCH_A)
+                    caster->CastSpell(target, SPELL_BURNING_PITCH_SIEGE_DMG_A, true);
+                else
+                    caster->CastSpell(target, SPELL_BURNING_PITCH_SIEGE_DMG_H, true);
+
+                caster->CastSpell(target, SPELL_BURNING_PITCH_AOE_DAMAGE, true);
+            }
+
+            void Register()
+            {
+                OnEffectHitTarget += SpellEffectFn(spell_gb_burning_pitch_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+            }
+        };
+
+        SpellScript* GetSpellScript() const
+        {
+            return new spell_gb_burning_pitch_SpellScript();
+        }
+};
+
+class spell_rocket_pack : public SpellScriptLoader
+{
+    public:
+        spell_rocket_pack() : SpellScriptLoader("spell_rocket_pack") { }
+
+        class spell_rocket_pack_AuraScript : public AuraScript
+        {
+            PrepareAuraScript(spell_rocket_pack_AuraScript);
+
+            void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+            {
+                GetTarget()->CastSpell(GetTarget(), 68721, true);
+            }
+
+            void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+            {
+                GetTarget()->RemoveAurasDueToSpell(68721);
+            }
+
+            void Register()
+            {
+                OnEffectApply += AuraEffectApplyFn(spell_rocket_pack_AuraScript::OnApply, EFFECT_1, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+                OnEffectRemove += AuraEffectRemoveFn(spell_rocket_pack_AuraScript::OnRemove, EFFECT_1, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+            }
+        };
+
+        AuraScript* GetAuraScript() const
+        {
+            return new spell_rocket_pack_AuraScript();
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
@@ -3004,4 +3208,10 @@ void AddSC_boss_gunship_battle()
 	new npc_gunship_portal();
 	new  npc_gunship_trigger();
 	new transport_gunship();
+    new spell_icc_remove_rocket_pack();
+    new spell_gb_heat_drain();
+    new spell_gb_overheat_drain();
+    new spell_gb_incinerating_blast();
+    new spell_gb_burning_pitch();
+    new spell_rocket_pack();
 }
