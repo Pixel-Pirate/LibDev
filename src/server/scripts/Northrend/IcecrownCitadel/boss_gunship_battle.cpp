@@ -289,8 +289,8 @@ void StartFlyShip(Transport* transport)
 {
     transport->SetFlag(GAMEOBJECT_FLAGS, GO_FLAG_IN_USE);
     transport->SetGoState(GO_STATE_ACTIVE);
-    transport->SetUInt32Value(GAMEOBJECT_DYNAMIC, 0x10830010); // Seen in sniffs
-    transport->SetFloatValue(GAMEOBJECT_PARENTROTATION 3, 1.0f);
+    transport->SetUInt32Value(GAMEOBJECT_DYNAMIC, 0x10830010);
+    transport->SetFloatValue(GAMEOBJECT_PARENTROTATION + 3, 1.0f);
 
     Map* map = transport->GetMap();
     std::set<uint32> mapsUsed;
@@ -440,7 +440,7 @@ void DoCheckFallingPlayer(Creature* creature)
                 if (Player* pPlayer = itr->getSource())
                 {
                     if (pPlayer->GetPositionZ() < 420.0f && pPlayer->IsWithinDistInMap(creature, 300.0f))
-                        pPlayer->NearTeleportTo(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ() 5.0f, creature->GetOrientation());
+                        pPlayer->NearTeleportTo(creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ() + 5.0f, creature->GetOrientation());
                 }
             }
         }
@@ -1104,7 +1104,7 @@ class npc_saurfang_gunship : public CreatureScript
             {
                 if ((!player->GetGroup() || !player->GetGroup()->IsLeader(player->GetGUID())) && !player->isGameMaster())
                 {
-                    player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Je ne suis pas Chef de Raid...", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF2);
+                    player->ADD_GOSSIP_ITEM(GOSSIP_ICON_CHAT, "Je ne suis pas Chef de Raid...", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+2);
                     player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, pCreature->GetGUID());
                     return true;
                 }
@@ -1122,7 +1122,7 @@ class npc_saurfang_gunship : public CreatureScript
             player->PlayerTalkClass->ClearMenus();
             player->CLOSE_GOSSIP_MENU();
 
-            if (action == GOSSIP_ACTION_INFO_DEF2)
+            if (action == GOSSIP_ACTION_INFO_DEF+2)
                 pCreature->MonsterSay("Je vais attendre le Chef du Raid.", LANG_UNIVERSAL, player->GetGUID());
 
             if (action == 1001)
@@ -3090,7 +3090,7 @@ class spell_gb_incinerating_blast : public SpellScriptLoader
                 if (!caster || !caster->GetPower(POWER_ENERGY))
                     return;
 
-                SetHitDamage(int32(GetHitDamage() (caster->GetPower(POWER_ENERGY) * 100.0f)));
+                SetHitDamage(int32(GetHitDamage() + (caster->GetPower(POWER_ENERGY) * 100.0f)));
                 caster->SetPower(POWER_ENERGY, 0);
             }
 
