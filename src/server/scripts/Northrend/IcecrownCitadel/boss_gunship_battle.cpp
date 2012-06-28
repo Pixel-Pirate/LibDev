@@ -2725,6 +2725,145 @@ class npc_skybreaker_protector: public CreatureScript
         }
 };
 
+class npc_icc_spire_frostwyrm: public CreatureScript
+{
+    public:
+        npc_icc_spire_frostwyrm() : CreatureScript("npc_icc_spire_frostwyrm") { }
+
+        struct npc_icc_spire_frostwyrmAI : public ScriptedAI
+        {
+            npc_icc_spire_frostwyrmAI(Creature* creature) : ScriptedAI(creature)
+            {
+                instance = creature->GetInstanceScript();
+            }
+
+            void Reset()
+            {
+                landed = false;
+                events.Reset();
+                me->SetFlying(true);
+                me->SetReactState(REACT_AGGRESSIVE);
+                me->AddUnitMovementFlag(MOVEMENTFLAG_LEVITATING);
+                events.ScheduleEvent(EVENT_FROST_BREATH, 20000);
+                events.ScheduleEvent(EVENT_BLIZZARD, 25000);
+                events.ScheduleEvent(EVENT_CLEAVE, 10000);
+            }
+
+            void MoveInLineOfSight(Unit* who)
+            {
+                if (!instance)
+                    return;
+
+                if (who->GetTypeId() != TYPEID_PLAYER)
+                    return;
+
+                if (!who->isTargetableForAttack())
+                    return;
+
+                if (!landed && me->IsWithinDistInMap(who, 35.0f))
+                {
+                    if (instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                        Talk(SAY_FROSTWYRM_LAND_H_0);
+                    else
+                        Talk(SAY_FROSTWYRM_LAND_A_1);
+                    landed = true;
+                    me->SetFlying(false);
+                    me->RemoveUnitMovementFlag(MOVEMENTFLAG_LEVITATING);
+                    me->SetInCombatWith(who);
+                    me->AddThreat(who, 1.0f);
+                    me->GetMotionMaster()->MoveChase(who);
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if (!UpdateVictim())
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_FROST_BREATH:
+                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                DoCast(target, SPELL_FROST_BREATH);
+                            events.ScheduleEvent(EVENT_FROST_BREATH, 20000);
+                            break;
+                        case EVENT_BLIZZARD:
+                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                DoCast(target, SPELL_BLIZZARD);
+                            events.ScheduleEvent(EVENT_BLIZZARD, 25000);
+                            break;
+                        case EVENT_CLEAVE:
+                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                DoCast(target, SPELL_FROST_CLEAVE);
+                            events.ScheduleEvent(EVENT_CLEAVE, 10000);
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+
+            private:
+                bool landed;
+                EventMap events;
+                InstanceScript* instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_icc_spire_frostwyrmAI(pCreature);
+        }
+};
+
+class at_icc_land_frostwyrm : public AreaTriggerScript
+{
+    public:
+        at_icc_land_frostwyrm() : AreaTriggerScript("at_icc_land_frostwyrm") { }
+
+        bool OnTrigger(Player* player, AreaTriggerEntry const* areaTrigger)
+        {
+            if (InstanceScript* instance = player->GetInstanceScript())
+            {
+                if (instance->GetData(DATA_SPIRE_FROSTWYRM_STATE) == NOT_STARTED && instance->GetData(DATA_SECOND_SQUAD_STATE) == DONE)
+                {
+                    if (instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                        player->GetMap()->SummonCreature(NPC_SPIRE_FROSTWYRM, FrostWyrmPosA);
+                    else
+                        player->GetMap()->SummonCreature(NPC_SPIRE_FROSTWYRM, FrostWyrmPosH);
+
+                    instance->SetData(DATA_SPIRE_FROSTWYRM_STATE, IN_PROGRESS);
+                }
+            }
+
+            return true;
+        }
+};
+
+class transport_gunship : public TransportScript
+{
+    public:
+        transport_gunship() : TransportScript("transport_gunship") { }
+
+        void OnRelocate(Transport* transport, uint32 waypointId, uint32 mapId, float x, float y, float z)
+        {
+        }
+
+        void OnAddPassenger(Transport* transport, Player* player)
+        {
+        }
+
+        void OnRemovePassenger(Transport* /*transport*/, Player* player)
+        {
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
@@ -2742,4 +2881,7 @@ void AddSC_boss_gunship_battle()
 	new npc_korkron_defender();
 	new npc_skybreaker_protector();
 	new npc_skybreaker_vindicator();
+	new npc_icc_spire_frostwyrm();
+	new at_icc_land_frostwyrm();
+	new transport_gunship();
 }
