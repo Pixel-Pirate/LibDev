@@ -2136,6 +2136,595 @@ class npc_gunship_mage : public CreatureScript
         }
 };
 
+class npc_mortar_soldier_or_rocketeer : public CreatureScript
+{
+    public:
+        npc_mortar_soldier_or_rocketeer() : CreatureScript("npc_mortar_soldier_or_rocketeer") { }
+
+        struct npc_mortar_soldier_or_rocketeerAI : public Scripted_NoMovementAI
+        {
+            npc_mortar_soldier_or_rocketeerAI(Creature *creature) : Scripted_NoMovementAI(creature),_instance(creature->GetInstanceScript())
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                ScriptedAI::Reset();
+                me->RemoveAurasDueToSpell(SPELL_EXPERIENCED);
+                me->RemoveAurasDueToSpell(SPELL_ELITE);
+                me->RemoveAurasDueToSpell(SPELL_VETERAN);
+                events.ScheduleEvent(EVENT_EXPERIENCED, urand(19000, 21000)); 
+                events.ScheduleEvent(EVENT_VETERAN, urand(39000, 41000));
+                events.ScheduleEvent(EVENT_ELITE, urand(59000, 61000)); 
+                events.ScheduleEvent(EVENT_ROCKET_ART, urand(10000, 15000)); 
+            }
+
+            void JustDied(Unit* killer)
+            {
+                if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == ALLIANCE)
+                {
+                    if (Creature* pSaurfangBoss = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_HIGH_OVERLORD_SAURFANG)))
+                        pSaurfangBoss->AI()->DoAction(ACTION_ROCK_DIE);
+                }
+                if (_instance->GetData(DATA_TEAM_IN_INSTANCE) == HORDE)
+                {
+                    if (Creature* pMuradin = ObjectAccessor::GetCreature(*me, _instance->GetData64(DATA_GB_MURADIN_BRONZEBEARD)))
+                        pMuradin->AI()->DoAction(ACTION_ROCK_DIE);
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if(_instance->GetBossState(DATA_GUNSHIP_EVENT) != IN_PROGRESS)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+                    
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_EXPERIENCED:
+                            DoCast(me, SPELL_EXPERIENCED);
+                            break;
+                        case EVENT_VETERAN:
+                            me->RemoveAurasDueToSpell(SPELL_EXPERIENCED);
+                            DoCast(me, SPELL_VETERAN);
+                            break;
+                        case EVENT_ELITE:
+                            me->RemoveAurasDueToSpell(SPELL_VETERAN);
+                            DoCast(me, SPELL_ELITE);
+                            break;
+                        case EVENT_ROCKET_ART:
+                            if(Player* target = SelectRandomPlayerInTheMaps(me->GetMap()))
+                            {
+                                if(me->GetEntry() == NPC_GB_KORKRON_ROCKETEER && target->HasAura(SPELL_ON_SKYBREAKERS_DECK))
+                                {
+                                    me->CastSpell(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), SPELL_ROCKET_ARTILLERY_TRIGGERED, true);
+                                    me->CastSpell(target, 69400, true);
+                                }
+                                else if(me->GetEntry() == NPC_GB_SKYBREAKER_MORTAR_SOLDIER && target->HasAura(SPELL_ON_ORGRIMS_HAMMERS_DECK))
+                                {
+                                    me->CastSpell(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), SPELL_ROCKET_ARTILLERY_TRIGGERED, true);
+                                    me->CastSpell(target, 70173, true);
+                                }
+                            }
+                            events.ScheduleEvent(EVENT_ROCKET_ART, urand(10000, 15000));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* _instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_mortar_soldier_or_rocketeerAI(pCreature);
+        }
+};
+
+class npc_zafod_boombox : public CreatureScript
+{
+    public:
+        npc_zafod_boombox() : CreatureScript("npc_zafod_boombox") { }
+
+        bool OnGossipHello(Player* pPlayer, Creature* pCreature)
+        {
+            if (pPlayer->GetItemCount(49278, false) == 0) // http://fr.wowhead.com/item=49278 pas trouvez mieux..
+                pPlayer->ADD_GOSSIP_ITEM(0, "Ouais, je suis sûr que la sécurité est votre priorité absolue. Donnez-moi un jetpack.", 631, 1);
+            pPlayer->SEND_GOSSIP_MENU(pPlayer->GetGossipTextId(pCreature), pCreature->GetGUID());
+            return true;
+        }
+
+        bool OnGossipSelect(Player* player, Creature* pCreature, uint32 /*sender*/, uint32 action)
+        {
+            player->PlayerTalkClass->ClearMenus();
+            player->CLOSE_GOSSIP_MENU();
+            if (action == 1)
+            {
+                uint32 curItemCount = player->GetItemCount(49278, false);
+                if (curItemCount >= 1)
+                {
+                    pCreature->MonsterWhisper("Vous avez déjà un jet-pack!", player->GetGUIDLow());
+                    return false;
+                }
+
+                ItemPosCountVec dest;
+                uint8 msg = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, 49278, 1);
+                if (msg == EQUIP_ERR_OK)
+                {
+                    Item* item = player->StoreNewItem(dest, 49278, true);
+                    player->SendNewItem(item, 1, true, false);
+                }
+                else
+                {
+                    pCreature->MonsterWhisper("Vous n'avez plus de place pour un jet-pack!", player->GetGUIDLow());
+                    return false;
+                }
+            }
+
+            return true;
+        }
+};
+
+class npc_korkron_primalist: public CreatureScript
+{
+    public:
+        npc_korkron_primalist() : CreatureScript("npc_korkron_primalist") { }
+
+        struct npc_korkron_primalistAI : public ScriptedAI
+        {
+            npc_korkron_primalistAI(Creature* creature) : ScriptedAI(creature)
+            {
+                instance = creature->GetInstanceScript();
+            }
+
+            void Reset()
+            {
+                _started = instance->GetBossState(DATA_GUNSHIP_EVENT) == DONE;
+                events.Reset();
+                events.ScheduleEvent(EVENT_WRATH, 10000);
+                events.ScheduleEvent(EVENT_HEAL, 20000);
+            }
+
+            void MoveInLineOfSight(Unit* who)
+            {
+                if (!instance)
+                    return;
+
+                if (instance->GetData(DATA_TEAM_IN_INSTANCE) != HORDE)
+                    return;
+
+                if (who->GetTypeId() != TYPEID_PLAYER)
+                    return;
+
+                if (instance->GetData(DATA_FIRST_SQUAD_STATE) == DONE)
+                    return;
+
+                if (!_started && me->IsWithinDistInMap(who, 25.0f))
+                {
+                    _started = true;
+                    events.ScheduleEvent(EVENT_FIRST_SQUAD_ASSISTED_1, 1000);
+                    events.ScheduleEvent(EVENT_FIRST_SQUAD_ASSISTED_2, 15000);
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if (!instance)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_FIRST_SQUAD_ASSISTED_1:
+                            Talk(SAY_FIRST_SQUAD_RESCUED_HORDE_0);
+                            break;
+                        case EVENT_FIRST_SQUAD_ASSISTED_2:
+                            if (Creature* tempUnit = me->FindNearestCreature(NPC_KORKRON_INVOKER, 120.0f, true))
+                            {
+                                tempUnit->AI()->Talk(SAY_FIRST_SQUAD_RESCUED_HORDE_1);
+                                tempUnit->AI()->Talk(SAY_SUMMON_BATTLE_STANDARD);
+                                tempUnit->CastSpell(tempUnit, SPELL_SUMMON_BATTLE_STANDART_H, true);
+                            }
+                            instance->SetData(DATA_FIRST_SQUAD_STATE, DONE);
+                            break;
+                        case EVENT_WRATH:
+                            if (UpdateVictim())
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                    DoCast(target, SPELL_WRATH);
+                            events.ScheduleEvent(EVENT_WRATH, 10000);
+                            break;
+                        case EVENT_HEAL:
+                            if (UpdateVictim())
+                            {
+                                std::list<Unit*> TargetList;
+                                Unit* finalTarget = me;
+                                Trinity::AnyFriendlyUnitInObjectRangeCheck checker(me, me, 30.0f);
+                                Trinity::UnitListSearcher<Trinity::AnyFriendlyUnitInObjectRangeCheck> searcher(me, TargetList, checker);
+                                me->VisitNearbyObject(30.0f, searcher);
+                                for (std::list<Unit*>::iterator itr = TargetList.begin(); itr != TargetList.end(); ++itr)
+                                    if ((*itr)->GetHealthPct() < finalTarget->GetHealthPct())
+                                        finalTarget = *itr;
+
+                                uint32 spellId = SPELL_HEALING_TOUCH;
+                                uint32 healthPct = uint32(finalTarget->GetHealthPct());
+                                if (healthPct > 15 && healthPct < 20)
+                                    spellId = (urand (0, 1) ? SPELL_REGROWTH : SPELL_HEALING_TOUCH);
+                                else if (healthPct >= 20 && healthPct < 40)
+                                    spellId = SPELL_REGROWTH;
+                                else if (healthPct > 40)
+                                    spellId = (urand(0, 1) ? SPELL_REJUVENATION : SPELL_REGROWTH);
+
+                                me->CastSpell(finalTarget, spellId, false);
+                                events.ScheduleEvent(EVENT_HEAL, 20000);
+                            }
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+
+            private:
+                bool _started;
+                EventMap events;
+                InstanceScript* instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_korkron_primalistAI(pCreature);
+        }
+};
+
+class npc_korkron_defender: public CreatureScript
+{
+    public:
+        npc_korkron_defender() : CreatureScript("npc_korkron_defender") { }
+
+        struct npc_korkron_defenderAI : public ScriptedAI
+        {
+            npc_korkron_defenderAI(Creature* creature) : ScriptedAI(creature)
+            {
+                instance = creature->GetInstanceScript();
+            }
+
+            void Reset()
+            {
+                events.Reset();
+                events.ScheduleEvent(EVENT_DEVASTATE, 10000);
+                events.ScheduleEvent(EVENT_THUNDERCLAP, 20000);
+                events.ScheduleEvent(EVENT_SPELL_REFLECT, 25000);
+                events.ScheduleEvent(EVENT_SUNDER_ARMOR, 15000);
+            }
+
+            void MoveInLineOfSight(Unit* who)
+            {
+                if (!instance)
+                    return;
+
+                if (instance->GetData(DATA_TEAM_IN_INSTANCE) != HORDE)
+                    return;
+
+                if (who->GetTypeId() != TYPEID_PLAYER)
+                    return;
+
+                if (me->IsWithinDistInMap(who, 25.0f))
+                {
+                    if (instance->GetData(DATA_FIRST_SQUAD_STATE) == DONE && instance->GetData(DATA_SECOND_SQUAD_STATE) != DONE)
+                    {
+                        instance->SetData(DATA_SECOND_SQUAD_STATE, DONE);
+                        events.ScheduleEvent(EVENT_SECOND_SQUAD_ASSISTED_1, 1000);
+                        events.ScheduleEvent(EVENT_SECOND_SQUAD_ASSISTED_2, 15000);
+                    }
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if (!instance)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_SECOND_SQUAD_ASSISTED_1:
+                            Talk(SAY_SECOND_SQUAD_RESCUED_HORDE_0);
+                            break;
+                        case EVENT_SECOND_SQUAD_ASSISTED_2:
+                            Talk(SAY_SECOND_SQUAD_RESCUED_HORDE_1);
+                            Talk(SAY_FROSTWYRM_SUMMON_0);
+                            break;
+                        case EVENT_DEVASTATE:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                                    DoCast(target, SPELL_DEVASTATE);
+                            }
+                            events.ScheduleEvent(EVENT_DEVASTATE, 10000);
+                            break;
+                        case EVENT_SPELL_REFLECT:
+                            if (UpdateVictim())
+                            {
+                                DoCast(me, SPELL_SPELL_REFLECT);
+                            }
+                            events.ScheduleEvent(EVENT_SPELL_REFLECT, 25000);
+                            break;
+                        case EVENT_THUNDERCLAP:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1))
+                                    DoCast(target, SPELL_THUNDERCLAP);
+                            }
+                            events.ScheduleEvent(EVENT_THUNDERCLAP, 20000);
+                            break;
+                        case EVENT_SUNDER_ARMOR:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1))
+                                    DoCast(target, SPELL_SUNDER_ARMOR);
+                            }
+                            events.ScheduleEvent(EVENT_SUNDER_ARMOR, 15000);
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_korkron_defenderAI(pCreature);
+        }
+};
+
+class npc_skybreaker_vindicator: public CreatureScript
+{
+    public:
+        npc_skybreaker_vindicator() : CreatureScript("npc_skybreaker_vindicator") { }
+
+        struct npc_skybreaker_vindicatorAI : public ScriptedAI
+        {
+            npc_skybreaker_vindicatorAI(Creature* creature) : ScriptedAI(creature)
+            {
+                instance = creature->GetInstanceScript();
+            }
+
+            void Reset()
+            {
+                _started = instance->GetBossState(DATA_GUNSHIP_EVENT) == DONE;
+                events.Reset();
+                events.ScheduleEvent(EVENT_AVENGERS_SHILED, 10000);
+                events.ScheduleEvent(EVENT_CONCENTRATION, 20000);
+                events.ScheduleEvent(EVENT_HOLY_WRATH, 20000);
+            }
+
+            void MoveInLineOfSight(Unit* who)
+            {
+                if (!instance)
+                    return;
+
+                if (instance->GetData(DATA_TEAM_IN_INSTANCE) != ALLIANCE)
+                    return;
+
+                if (who->GetTypeId() != TYPEID_PLAYER)
+                    return;
+
+                if (instance->GetData(DATA_FIRST_SQUAD_STATE) == DONE)
+                    return;
+
+                if (!_started && me->IsWithinDistInMap(who, 25.0f))
+                {
+                    _started = true;
+                    events.ScheduleEvent(EVENT_FIRST_SQUAD_ASSISTED_1, 1000);
+                    events.ScheduleEvent(EVENT_FIRST_SQUAD_ASSISTED_2, 15000);
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if (!instance)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_FIRST_SQUAD_ASSISTED_1:
+                            Talk(SAY_FIRST_SQUAD_RESCUED_ALLIANCE_0);
+                            break;
+                        case EVENT_FIRST_SQUAD_ASSISTED_2:
+                            if (Creature* tempUnit = me->FindNearestCreature(NPC_SKYBREAKER_SORCERER, 120.0f, true))
+                            {
+                                tempUnit->AI()->Talk(SAY_FIRST_SQUAD_RESCUED_ALLIANCE_1);
+                                tempUnit->AI()->Talk(SAY_SUMMON_BATTLE_STANDARD);
+                                tempUnit->CastSpell(tempUnit, SPELL_SUMMON_BATTLE_STANDART_A, true);
+                            }
+                            instance->SetData(DATA_FIRST_SQUAD_STATE, DONE);
+                            break;
+                        case EVENT_AVENGERS_SHILED:
+                            if (UpdateVictim())
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                    DoCast(target, SPELL_WRATH);
+                            events.ScheduleEvent(EVENT_AVENGERS_SHILED, 10000);
+                            break;
+                        case EVENT_CONCENTRATION:
+                            if (UpdateVictim())
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                    DoCast(target, SPELL_CONCENTRATION);
+                            events.ScheduleEvent(EVENT_CONCENTRATION, 20000);
+                            break;
+                        case EVENT_HOLY_WRATH:
+                            if (UpdateVictim())
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 10.0f))
+                                    DoCast(target, SPELL_HOLY_WRATH);
+                            events.ScheduleEvent(EVENT_HOLY_WRATH, 15000);
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+
+            private:
+                bool _started;
+                EventMap events;
+                InstanceScript* instance;
+        };
+
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_skybreaker_vindicatorAI(pCreature);
+        }
+};
+
+class npc_skybreaker_protector: public CreatureScript
+{
+    public:
+        npc_skybreaker_protector() : CreatureScript("npc_skybreaker_protector") { }
+
+        struct npc_skybreaker_protectorAI : public ScriptedAI
+        {
+            npc_skybreaker_protectorAI(Creature* creature) : ScriptedAI(creature)
+            {
+                instance = creature->GetInstanceScript();
+            }
+
+            void Reset()
+            {
+                events.Reset();
+                events.ScheduleEvent(EVENT_DEVASTATE, 10000);
+                events.ScheduleEvent(EVENT_THUNDERCLAP, 20000);
+                events.ScheduleEvent(EVENT_SPELL_REFLECT, 25000);
+                events.ScheduleEvent(EVENT_SUNDER_ARMOR, 15000);
+            }
+
+            void MoveInLineOfSight(Unit* who)
+            {
+                if (!instance)
+                    return;
+
+                if (instance->GetData(DATA_TEAM_IN_INSTANCE) != ALLIANCE)
+                    return;
+
+                if (who->GetTypeId() != TYPEID_PLAYER)
+                    return;
+
+                if (me->IsWithinDistInMap(who, 25.0f))
+                {
+                    if (instance->GetData(DATA_FIRST_SQUAD_STATE) == DONE && instance->GetData(DATA_SECOND_SQUAD_STATE) != DONE)
+                    {
+                        instance->SetData(DATA_SECOND_SQUAD_STATE, DONE);
+                        events.ScheduleEvent(EVENT_SECOND_SQUAD_ASSISTED_1, 1000);
+                        events.ScheduleEvent(EVENT_SECOND_SQUAD_ASSISTED_2, 11000);
+                        events.ScheduleEvent(EVENT_SECOND_SQUAD_ASSISTED_3, 17000);
+                    }
+                }
+            }
+
+            void UpdateAI(const uint32 diff)
+            {
+                if (!instance)
+                    return;
+
+                if (me->HasUnitState(UNIT_STAT_CASTING))
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_SECOND_SQUAD_ASSISTED_1:
+                            Talk(SAY_SECOND_SQUAD_RESCUED_ALLIANCE_0);
+                            break;
+                        case EVENT_SECOND_SQUAD_ASSISTED_2:
+                            Talk(SAY_SECOND_SQUAD_RESCUED_ALLIANCE_1);
+                            break;
+                        case EVENT_SECOND_SQUAD_ASSISTED_3:
+                            Talk(SAY_SECOND_SQUAD_RESCUED_ALLIANCE_2);
+                            Talk(SAY_FROSTWYRM_SUMMON_1);
+                            break;
+                        case EVENT_DEVASTATE:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                                    DoCast(target, SPELL_DEVASTATE);
+                            }
+                            events.ScheduleEvent(EVENT_DEVASTATE, 10000);
+                            break;
+                        case EVENT_SPELL_REFLECT:
+                            if (UpdateVictim())
+                            {
+                                DoCast(me, SPELL_SPELL_REFLECT);
+                            }
+                            events.ScheduleEvent(EVENT_SPELL_REFLECT, 25000);
+                            break;
+                        case EVENT_THUNDERCLAP:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1))
+                                    DoCast(target, SPELL_THUNDERCLAP);
+                            }
+                            events.ScheduleEvent(EVENT_THUNDERCLAP, 20000);
+                            break;
+                        case EVENT_SUNDER_ARMOR:
+                            if (UpdateVictim())
+                            {
+                                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1))
+                                    DoCast(target, SPELL_SUNDER_ARMOR);
+                            }
+                            events.ScheduleEvent(EVENT_SUNDER_ARMOR, 15000);
+                            break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+
+            private:
+                EventMap events;
+                InstanceScript* instance;
+        };
+        CreatureAI* GetAI(Creature* pCreature) const
+        {
+            return new npc_skybreaker_protectorAI(pCreature);
+        }
+};
+
 void AddSC_boss_gunship_battle()
 {
 	new npc_muradin_gunship();
@@ -2146,5 +2735,11 @@ void AddSC_boss_gunship_battle()
 	new npc_korkron_axethrower_rifleman();
 	new npc_sergeant();
 	new npc_marine_or_reaver();
-	new npc_gunship_mage
+	new npc_gunship_mage();
+	new npc_mortar_soldier_or_rocketeer();
+	new npc_zafod_boombox();
+	new npc_korkron_primalist();
+	new npc_korkron_defender();
+	new npc_skybreaker_protector();
+	new npc_skybreaker_vindicator();
 }
