@@ -2956,10 +2956,29 @@ class transport_gunship : public TransportScript
 
         void OnAddPassenger(Transport* transport, Player* player)
         {
+			if (!transport || !player)
+                return;
+
+            switch (transport->GetEntry())
+            {
+                case GO_THE_SKYBREAKER_ALLIANCE_ICC:
+                    player->AddAura(SPELL_ON_SKYBREAKERS_DECK, player);
+                    break;
+                case GO_ORGRIM_S_HAMMER_HORDE_ICC:
+                    player->AddAura(SPELL_ON_ORGRIMS_HAMMERS_DECK, player);
+                    break;
+                default:
+                    break;
+            }
         }
 
         void OnRemovePassenger(Transport* /*transport*/, Player* player)
         {
+			if (!player)
+                return;
+
+            player->RemoveAurasDueToSpell(SPELL_ON_ORGRIMS_HAMMERS_DECK);
+            player->RemoveAurasDueToSpell(SPELL_ON_SKYBREAKERS_DECK);
         }
 };
 
