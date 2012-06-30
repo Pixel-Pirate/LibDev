@@ -404,7 +404,7 @@ bool Map::AddPlayerToMap(Player* player)
     SendInitTransports(player);
 
 	if (Instanceable())
-        SendInitTransportsInInstance(player)
+        SendInitTransportsInInstance(player);
 	
     player->m_clientGUIDs.clear();
     player->UpdateObjectVisibility(false);
