@@ -74,25 +74,9 @@ INSERT INTO `conditions` (`SourceTypeOrReferenceId`, `SourceEntry`, `ConditionTy
 ('13', '70383', '18', '1', @ENTRYH),
 ('13', '72959', '18', '1', 0);
 
--- Gunship cannons
-DELETE FROM `conditions` WHERE `SourceTypeOrReferenceId` AND `SourceEntry` IN (69400,69402,70173,70715);
-INSERT INTO `conditions` (`SourceTypeOrReferenceId`, `SourceGroup`, `SourceEntry`, `ElseGroup`, `ConditionTypeOrReference`, `ConditionValue1`, `ConditionValue2`, `ConditionValue3`, `ErrorTextId`, `ScriptName`, `Comment`) VALUES
-(13,0,69400,0,18,1,37540,0,0, '', NULL),
-(13,0,69402,0,18,1,37540,0,0, '', NULL),
-(13,0,70173,0,18,1,37215,0,0, '', NULL),
-(13,0,70175,0,18,1,37215,0,0, '', NULL); 
-DELETE FROM `creature_template` WHERE `entry` IN (36838,36839);
-INSERT INTO `creature_template` (`entry`, `difficulty_entry_1`, `difficulty_entry_2`, `difficulty_entry_3`, `KillCredit1`, `KillCredit2`, `modelid1`, `modelid2`, `modelid3`, `modelid4`, `name`, `subname`, `IconName`, `gossip_menu_id`, `minlevel`, `maxlevel`, `exp`, `faction_A`, `faction_H`, `npcflag`, `speed_walk`, `speed_run`, `scale`, `rank`, `mindmg`, `maxdmg`, `dmgschool`, `attackpower`, `dmg_multiplier`, `baseattacktime`, `rangeattacktime`, `unit_class`, `unit_flags`, `dynamicflags`, `family`, `trainer_type`, `trainer_spell`, `trainer_class`, `trainer_race`, `minrangedmg`, `maxrangedmg`, `rangedattackpower`, `type`, `type_flags`, `lootid`, `pickpocketloot`, `skinloot`, `resistance1`, `resistance2`, `resistance3`, `resistance4`, `resistance5`, `resistance6`, `spell1`, `spell2`, `spell3`, `spell4`, `spell5`, `spell6`, `spell7`, `spell8`, `PetSpellDataId`, `VehicleId`, `mingold`, `maxgold`, `AIName`, `MovementType`, `InhabitType`, `Health_mod`, `Mana_mod`, `Armor_mod`, `RacialLeader`, `questItem1`, `questItem2`, `questItem3`, `questItem4`, `questItem5`, `questItem6`, `movementId`, `RegenHealth`, `equipment_id`, `mechanic_immune_mask`, `flags_extra`, `ScriptName`, `WDBVerified`) VALUES
-(36838,35410,0,0,0,0,29488,0,0,0,'Cannon de l\'Alliance','','vehichleCursor',0,80,80,0,1732,1732,0,0,0,1,0,422,586,0,642,1,0,0,1,0,16384,0,0,0,0,0,345,509,103,9,8,0,0,0,0,0,0,0,0,0,70172,70174,0,0,0,0,0,0,0,554,0,0,'SmartAI',0,3,65.5185,1,1,0,0,0,0,0,0,0,0,1,0,0,0,'',12340),
-(36839,35427,0,0,0,0,29489,0,0,0,'Cannon de la Horde','','vehichleCursor',0,80,80,0,1665,1665,0,0,0,1,0,422,586,0,642,1,0,0,1,16384,8,0,0,0,0,0,345,509,103,9,8,0,0,0,0,0,0,0,0,0,69399,69401,0,0,0,0,0,0,0,0,0,0,'SmartAI',0,3,65.5185,1,1,0,0,0,0,0,0,0,0,1,0,0,0,'',12340);
-DELETE FROM `smart_scripts` WHERE `entryorguid` IN (36838,36839);
-INSERT INTO `smart_scripts` (`entryorguid`, `source_type`, `id`, `link`, `event_type`, `event_phase_mask`, `event_chance`, `event_flags`, `event_param1`, `event_param2`, `event_param3`, `event_param4`, `action_type`, `action_param1`, `action_param2`, `action_param3`, `action_param4`, `action_param5`, `action_param6`, `target_type`, `target_param1`, `target_param2`, `target_param3`, `target_x`, `target_y`, `target_z`, `target_o`, `comment`) VALUES
-(36838,0,0,0,25,0,100,0,0,0,0,0,75,69470,0,0,0,0,0,1,0,0,0,0,0,0,0, 'Heat Drain'),
-(36839,0,0,0,25,0,100,0,0,0,0,0,75,69470,0,0,0,0,0,1,0,0,0,0,0,0,0, 'Heat Drain');
-DELETE FROM `npc_spellclick_spells` WHERE `npc_entry` IN (36838,36839);
-INSERT INTO `npc_spellclick_spells` (`npc_entry`, `spell_id`, `quest_start`, `quest_start_active`, `quest_end`, `cast_flags`, `aura_required`, `aura_forbidden`, `user_type`) VALUES
-(36838,46598,0,0,0,1,0,0,0),
-(36839,46598,0,0,0,1,0,0,0);
+-- cannon 25 man
+UPDATE `creature_template` SET `difficulty_entry_1`=0 WHERE `entry`=36839 LIMIT 1;
+UPDATE `creature_template` SET `speed_walk`=0 AND `speed_run`=0 WHERE `entry`=36839 AND `entry`=36838; -- fix cannon mouvement
 
 -- Transport
 DELETE FROM transports WHERE entry IN (201580, 201581, 201811, 201812);
